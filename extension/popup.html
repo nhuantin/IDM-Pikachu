@@ -1,41 +1,18 @@
 <!DOCTYPE html>
-<html>
+<html lang="vi">
 <head>
-  <title>IDM Pikachu Extension</title>
-  <style>
-    body { font-family: Arial; padding: 12px; }
-    input[type=text] { width: 94%; margin-bottom: 8px; }
-    button { width: 100%; padding: 6px 0; margin-bottom: 5px; }
-  </style>
-  <meta charset="UTF-8">
-    <title>Chọn tệp để tải</title>
-    <link rel="stylesheet" href="popup.css">
+  <meta charset="UTF-8" />
+  <title>Chọn tệp để tải</title>
+  <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-    <div id="pikachu-box">
-        <div id="pikachu-title">⚡ Chọn tệp để tải <button id="close-btn">✖</button></div>
-        <div id="options-list">Đang lấy định dạng...</div>
-    </div>
-    <script src="popup.js"></script>
-</head>
-<body>
-  <input type="text" id="url" placeholder="Paste link here"/><br>
-  <button id="btnSend">Tải bằng IDM Pikachu</button>
-  <button id="btnPaste">Dán link từ clipboard</button>
-  <div id="status" style="margin-top:8px;color:green"></div>
-  <script>
-    document.getElementById('btnSend').onclick = function() {
-      const url = document.getElementById('url').value.trim();
-      if (!url) return alert("Bạn chưa nhập link!");
-      chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-        chrome.runtime.sendMessage({popupDownload: true, url: url, tabId: tabs[0].id}, function(resp) {
-          document.getElementById('status').innerText = "Đã gửi link về ứng dụng!";
-        });
-      });
-    };
-    document.getElementById('btnPaste').onclick = async function() {
-      document.getElementById('url').value = await navigator.clipboard.readText();
-    };
-  </script>
+  <div id="pikachu-box">
+      <div id="pikachu-title">
+          ⚡ Chọn tệp để tải
+          <button id="close-btn">✖</button>
+      </div>
+      <div id="options-list">Đang lấy định dạng...</div>
+  </div>
+  <script src="popup.js"></script>
 </body>
 </html>
