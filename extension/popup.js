@@ -9,30 +9,30 @@ document.addEventListener('DOMContentLoaded', async () => {
             .then(res => res.json())
             .then(data => {
                 optionsList.innerHTML = "";
-                if (data.video.length) {
-                    optionsList.innerHTML += "<h4>🎬 VIDEO</h4>";
+
+                // VIDEO
+                if (data.video && data.video.length) {
+                    optionsList.innerHTML += `<div class="section"><span class="icon">📺</span> <span class="section-title">VIDEO</span></div>`;
                     data.video.forEach(f => {
-                        optionsList.innerHTML += `<div class="option" data-type="video" data-id="${f.format_id}">
-                            ${f.label} (${f.filesize} MB)
-                        </div>`;
+                        optionsList.innerHTML += `<div class="option" data-type="video" data-id="${f.format_id}"><span class="option-label">${f.label}</span><span class="option-ext">${f.ext || ".mp4"}</span></div>`;
                     });
                 }
-                if (data.audio.length) {
-                    optionsList.innerHTML += "<h4>🎵 AUDIO</h4>";
+                // AUDIO
+                if (data.audio && data.audio.length) {
+                    optionsList.innerHTML += `<div class="section"><span class="icon">🎵</span> <span class="section-title">AUDIO</span></div>`;
                     data.audio.forEach(f => {
-                        optionsList.innerHTML += `<div class="option" data-type="audio" data-id="${f.format_id}">
-                            ${f.label} (${f.filesize} MB)
-                        </div>`;
+                        optionsList.innerHTML += `<div class="option" data-type="audio" data-id="${f.format_id}"><span class="option-label">${f.label}</span><span class="option-ext">${f.ext || ".mp3"}</span></div>`;
                     });
                 }
-                if (data.subtitles.length) {
-                    optionsList.innerHTML += "<h4>📝 PHỤ ĐỀ</h4>";
+                // SUBTITLES
+                if (data.subtitles && data.subtitles.length) {
+                    optionsList.innerHTML += `<div class="section"><span class="icon">📝</span> <span class="section-title">PHỤ ĐỀ</span></div>`;
                     data.subtitles.forEach(s => {
-                        optionsList.innerHTML += `<div class="option" data-type="subtitle" data-lang="${s.lang}">
-                            ${s.label} (.srt)
-                        </div>`;
+                        optionsList.innerHTML += `<div class="option" data-type="subtitle" data-lang="${s.lang}"><span class="option-label">${s.label}</span><span class="option-ext">.srt</span></div>`;
                     });
                 }
+
+                // Bắt sự kiện click
                 document.querySelectorAll('.option').forEach(opt => {
                     opt.onclick = () => {
                         const type = opt.dataset.type;
