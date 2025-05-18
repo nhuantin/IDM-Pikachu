@@ -1,164 +1,85 @@
 import sys
 import os
+import shutil
 import urllib.parse
-import time
-import socket
 import threading
 import locale
 import requests
-import subprocess 
-import sys, urllib.parse
-from PyQt5.QtCore import pyqtSignal
+from flask import Flask, request, jsonify
 from yt_dlp import YoutubeDL
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget,
     QTableWidget, QTableWidgetItem, QPushButton, QLineEdit, QLabel,
-    QTreeWidget, QTreeWidgetItem, QSplitter, QMessageBox
+    QTreeWidget, QTreeWidgetItem, QSplitter, QMessageBox, QDialog, QComboBox
 )
 
-class DownloadThread(QThread):
-    ...
-    def run(self):
-        ...
-        fast_download(self.url, save_path)
-
-LANGUAGES = {
-    'vi': {
-        'add_url': 'Thêm liên kết',
-        'pause': 'Tạm dừng',
-        'resume': 'Tiếp tục',
-        'delete': 'Xóa',
-        'download_link': 'Liên kết tải:',
-        'downloading': 'Đang tải...',
-        'completed': 'Hoàn thành',
-        'all_downloads': 'Tất cả',
-        'status': 'Trạng thái',
-        'filename': 'Tên tệp',
-        'size': 'Kích thước',
-        'time_left': 'Thời gian còn lại',
-        'transfer_rate': 'Tốc độ',
-        'category': 'Video',
-    },
-    'en': {
-        'add_url': 'Add URL',
-        'pause': 'Pause',
-        'resume': 'Resume',
-        'delete': 'Delete',
-        'download_link': 'Download link:',
-        'downloading': 'Downloading...',
-        'completed': 'Completed',
-        'all_downloads': 'All Downloads',
-        'status': 'Status',
-        'filename': 'File Name',
-        'size': 'Size',
-        'time_left': 'Time left',
-        'transfer_rate': 'Transfer rate',
-        'category': 'Category',
-    }
+ICON_PATHS = {
+    "folder": "folder.png",
+    "archive": "archive.png",
+    "document": "document.png",
+    "music": "music.png",
+    "program": "program.png",
+    "video": "video.png"
 }
-
-lang_code = (locale.getlocale()[0] or 'vi').split('_')[0].lower()
-if lang_code not in LANGUAGES:
-    lang_code = 'vi'
-L = LANGUAGES[lang_code]
-
-CATEGORY_LABELS = {
-    'Video': L['category'] if lang_code == 'vi' else 'Video',
-    'Music': 'Nhạc' if lang_code == 'vi' else 'Music',
-    'Documents': 'Tài liệu' if lang_code == 'vi' else 'Documents',
-    'Programs': 'Chương trình' if lang_code == 'vi' else 'Programs',
-    'Compressed': 'Nén' if lang_code == 'vi' else 'Compressed'
-}
-
-CATEGORIES = {
-    'Video': ['.mp4', '.mkv', '.avi', '.mov'],
-    'Music': ['.mp3', '.wav', '.flac'],
-    'Documents': ['.pdf', '.docx', '.xlsx', '.pptx', '.txt'],
-    'Programs': ['.exe', '.msi', '.zip', '.rar', '.tar.gz'],
-    'Compressed': ['.zip', '.rar', '.7z', '.tar.gz']
-}
+CATEGORY_TREE = [
+    ("All",        "Tất cả",        "folder"),
+    ("Compressed", "Tệp nén",       "archive"),
+    ("Documents",  "Tài liệu",      "document"),
+    ("Music",      "Âm nhạc",       "music"),
+    ("Programs",   "Chương trình",  "program"),
+    ("Video",      "Video",         "video"),
+]
 
 DOWNLOAD_ROOT = r"C:\Users\CHANHDIEN\Downloads"
+COOKIES_FILE = r"D:\NhuanTinIDM\cookies.txt"
 
-main_window = None
+CATEGORY_FOLDERS = {
+    'Video': os.path.join(DOWNLOAD_ROOT, "Video"),
+    'Music': os.path.join(DOWNLOAD_ROOT, "Music"),
+    'Documents': os.path.join(DOWNLOAD_ROOT, "Documents"),
+    'Programs': os.path.join(DOWNLOAD_ROOT, "Programs"),
+    'Compressed': os.path.join(DOWNLOAD_ROOT, "Compressed"),
+    'Other': DOWNLOAD_ROOT
+}
+CATEGORIES = {
+    'Video': ['.mp4', '.mkv', '.avi', '.mov', '.webm'],
+    'Music': ['.mp3', '.wav', '.flac', '.ogg', '.m4a'],
+    'Documents': ['.pdf', '.docx', '.xlsx', '.pptx', '.txt'],
+    'Programs': ['.exe', '.msi'],
+    'Compressed': ['.zip', '.rar', '.7z', '.tar.gz']
+}
+CATEGORY_LABELS = {
+    "Compressed": {"vi": "Tệp nén", "en": "Compressed"},
+    "Documents": {"vi": "Tài liệu", "en": "Documents"},
+    "Music": {"vi": "Âm nhạc", "en": "Music"},
+    "Programs": {"vi": "Chương trình", "en": "Programs"},
+    "Video": {"vi": "Video", "en": "Video"},
+    "Other": {"vi": "Khác", "en": "Other"},
+    "All": {"vi": "Tất cả", "en": "All"}
+}
 
-def fast_download(url, output):
-    subprocess.run(['aria2c', '-x', '16', '-s', '16', '-o', output, url])
-
-def extract_real_link(protocol_link):
-    if protocol_link.startswith("idmapp://download?url=") or protocol_link.startswith("idmapp://download/?url="):
-        qs = urllib.parse.urlparse(protocol_link).query
-        link_real = urllib.parse.parse_qs(qs).get('url', [''])[0]
-        link_real = urllib.parse.unquote(link_real)
-        return link_real
-    return protocol_link
-
-def process_link(link):
-    global main_window
-    real_link = extract_real_link(link)
-    print("Nhận link:", real_link)
-    if main_window is not None:
-        main_window.add_link_signal.emit(real_link)
-
-def server():
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(('127.0.0.1', 5678))
-    s.listen(1)
-    while True:
-        conn, addr = s.accept()
-        data = conn.recv(4096).decode()
-        if data:
-            process_link(data)
-        conn.close()
-
-def send_to_running_app(link):
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect(('127.0.0.1', 5678))
-        s.sendall(link.encode())
-        s.close()
-        return True
-    except:
-        return False
-
-def main():
-    global main_window
-    if len(sys.argv) > 1:
-        url = sys.argv[1]
-        if send_to_running_app(url):
-            sys.exit(0)
-        else:
-            threading.Thread(target=server, daemon=True).start()
-            app = QApplication(sys.argv)
-            win = DownloadManager()
-            main_window = win
-            win.show()
-            process_link(url)
-            sys.exit(app.exec_())
-    else:
-        threading.Thread(target=server, daemon=True).start()
-        app = QApplication(sys.argv)
-        win = DownloadManager()
-        main_window = win
-        win.show()
-        sys.exit(app.exec_())
+# Ngôn ngữ tự động
+try:
+    lang_tuple = locale.getlocale()
+    LANG = lang_tuple[0] if lang_tuple and lang_tuple[0] else 'en'
+except:
+    LANG = 'en'
+CURRENT_LANG = "vi" if LANG.lower().startswith("vi") else "en"
 
 def get_category(filename):
     ext = os.path.splitext(filename)[1].lower()
     for cat, exts in CATEGORIES.items():
         if ext in exts:
             return cat
-    return None
+    return 'Other'
 
-def get_save_path(filename):
-    cat = get_category(filename)
-    if cat:
-        folder = os.path.join(DOWNLOAD_ROOT, CATEGORY_LABELS[cat])
-        os.makedirs(folder, exist_ok=True)
-        return os.path.join(folder, filename)
-    return os.path.join(DOWNLOAD_ROOT, filename)
+def get_save_path(filename, category=None):
+    cat = category if category else get_category(filename if '%' not in filename else '.mp3')
+    folder = CATEGORY_FOLDERS.get(cat, DOWNLOAD_ROOT)
+    os.makedirs(folder, exist_ok=True)
+    return os.path.join(folder, filename)
 
 def format_seconds(secs):
     if secs <= 0 or secs > 365*24*3600:
@@ -166,89 +87,262 @@ def format_seconds(secs):
     m, s = divmod(int(secs), 60)
     h, m = divmod(m, 60)
     if h > 0:
-        return f"{h} hour(s) {m:02d} min {s:02d} sec"
+        return f"{h}h {m:02d}m {s:02d}s"
     elif m > 0:
-        return f"{m} min {s:02d} sec"
+        return f"{m}m {s:02d}s"
     else:
-        return f"{s} sec"
-
-def get_filename_from_response(url, resp):
-    cd = resp.headers.get("content-disposition")
-    if cd:
-        import re
-        fname = re.findall('filename="?([^"]+)"?', cd)
-        if fname:
-            return fname[0]
-    filename = os.path.basename(urllib.parse.urlparse(url).path)
-    return filename or "unknown_file"
+        return f"{s}s"
 
 def is_youtube_or_social(url):
-    for s in ['youtube.com', 'youtu.be', 'facebook.com', 'fb.watch', 'tiktok.com']:
-        if s in url:
-            return True
-    return False
+    return any(s in url for s in ['youtube.com', 'youtu.be', 'facebook.com', 'fb.watch', 'tiktok.com'])
+
+# =============== FLASK SERVER ===============
+def run_api_server():
+    app = Flask(__name__)
+
+    @app.route("/formats")
+    def get_formats():
+        url = request.args.get("url")
+        ydl_opts = {"cookiefile": COOKIES_FILE, "quiet": True}
+        video, audio, video_only = [], [], []
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            for f in info.get("formats", []):
+                # VIDEO+Audio
+                if f.get("vcodec") != "none" and f.get("acodec") != "none":
+                    label = ""
+                    if f.get("format_note"):
+                        label += f"{f['format_note']} "
+                    if f.get("height"):
+                        label += f"{f['height']}p"
+                    if f.get("fps"):
+                        label += f" {int(f['fps'])}fps"
+                    label += f" .{f['ext']}"
+                    video.append({
+                        "format_id": f["format_id"],
+                        "label": label.strip(),
+                        "ext": f['ext'],
+                        "filesize": round(f.get('filesize', 0)/1024/1024, 1) if f.get('filesize') else "?"
+                    })
+                # VIDEO ONLY
+                elif f.get("vcodec") != "none" and f.get("acodec") == "none":
+                    label = ""
+                    if f.get("format_note"):
+                        label += f"{f['format_note']} "
+                    if f.get("height"):
+                        label += f"{f['height']}p"
+                    if f.get("fps"):
+                        label += f" {int(f['fps'])}fps"
+                    label += f" (chỉ hình) .{f['ext']}"
+                    video_only.append({
+                        "format_id": f["format_id"],
+                        "label": label.strip(),
+                        "ext": f['ext'],
+                        "filesize": round(f.get('filesize', 0)/1024/1024, 1) if f.get('filesize') else "?"
+                    })
+                # AUDIO ONLY
+                elif f.get("vcodec") == "none" and f.get("acodec") != "none":
+                    if f.get('ext') == 'mp4' or not f.get('format_id'):
+                        continue
+                    label = ""
+                    if f.get("abr"):
+                        label += f"{int(f['abr'])}kbps"
+                    elif f.get("asr"):
+                        label += f"{int(f['asr'])}Hz"
+                    else:
+                        label += "Audio"
+                    if f.get("ext") == "m4a":
+                        label += " (AAC .m4a)"
+                    elif f.get("ext") == "webm":
+                        label += " (Opus .webm)"
+                    else:
+                        label += f" .{f['ext']}"
+                    audio.append({
+                        "format_id": f["format_id"],
+                        "label": label.strip(),
+                        "ext": f['ext'],
+                        "filesize": round(f.get('filesize', 0)/1024/1024, 1) if f.get('filesize') else "?"
+                    })
+        return jsonify({"video": video, "video_only": video_only, "audio": audio})
+
+    @app.route("/download", methods=["POST"])
+    def download():
+        data = request.json
+        url = data["url"]
+        typ = data["type"]
+        format_id = data.get("format_id")
+        outtmpl = os.path.join(DOWNLOAD_ROOT, "%(title)s.%(ext)s")
+        ydl_opts = {
+            "cookiefile": COOKIES_FILE,
+            "outtmpl": outtmpl,
+            "concurrent_fragment_downloads": 16,
+            "retries": 5,
+            "force_overwrite": True,
+            "continuedl": True,
+            "quiet": True,
+            "noprogress": False,
+            "merge_output_format": "mp4",
+        }
+        if typ == "video" and format_id:
+            ydl_opts["format"] = f"{format_id}+bestaudio[ext=m4a]/bestvideo+bestaudio/best"
+        elif typ == "audio" and format_id:
+            ydl_opts["format"] = format_id
+            target_ext = data.get("target_ext", "mp3")
+            bitrate = data.get("bitrate", "192")
+            ydl_opts["postprocessors"] = [{
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": target_ext,
+                "preferredquality": bitrate
+            }]
+        elif typ == "subtitle":
+            ydl_opts.update({
+                "writesubtitles": True,
+                "writeautomaticsub": True,
+                "subtitleslangs": [data["lang"]],
+                "skip_download": True
+            })
+        else:
+            return jsonify({"status": "error"}), 400
+
+        def bg():
+            try:
+                with YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([url])
+            except Exception as e:
+                print(f"DOWNLOAD ERROR: {e}")
+        threading.Thread(target=bg, daemon=True).start()
+        return jsonify({"status": "ok"})
+    app.run(port=5678)
+
+threading.Thread(target=run_api_server, daemon=True).start()
+
+# ============= PYQT5 GUI ================
+class AudioOptionDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Tùy chọn tải âm thanh")
+        layout = QVBoxLayout()
+        layout.addWidget(QLabel("Chọn bitrate xuất (kbps):"))
+        self.bitrate_box = QComboBox()
+        self.bitrate_box.addItems(["32", "64", "128", "192", "256", "320"])
+        layout.addWidget(self.bitrate_box)
+        layout.addWidget(QLabel("Chọn định dạng lưu:"))
+        self.fmt_box = QComboBox()
+        self.fmt_box.addItems(["mp3", "m4a", "ogg"])
+        layout.addWidget(self.fmt_box)
+        self.select_btn = QPushButton("Chọn")
+        self.select_btn.clicked.connect(self.accept)
+        layout.addWidget(self.select_btn)
+        self.setLayout(layout)
+    def get_selection(self):
+        return self.bitrate_box.currentText(), self.fmt_box.currentText()
+
+class VideoOptionDialog(QDialog):
+    def __init__(self, video_list, video_only_list, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Chọn định dạng video tải")
+        layout = QVBoxLayout()
+        layout.addWidget(QLabel("Chọn chất lượng video muốn tải:"))
+        self.listwidget = QComboBox()
+        self.options = []
+        if video_list:
+            for item in video_list:
+                label = f"{item.get('label','')} [{item.get('ext','')}], size={item.get('filesize','?')}MB"
+                self.listwidget.addItem(label)
+                self.options.append(item)
+        if video_only_list:
+            for item in video_only_list:
+                label = f"{item.get('label','')} [{item.get('ext','')}], size={item.get('filesize','?')}MB"
+                self.listwidget.addItem(label)
+                self.options.append(item)
+        layout.addWidget(self.listwidget)
+        self.select_btn = QPushButton("Chọn")
+        self.select_btn.clicked.connect(self.accept)
+        layout.addWidget(self.select_btn)
+        self.setLayout(layout)
+    def get_selection(self):
+        idx = self.listwidget.currentIndex()
+        if idx < 0 or idx >= len(self.options):
+            QMessageBox.warning(self, "Chưa chọn", "Bạn phải chọn một định dạng video!")
+            return None
+        return self.options[idx]
+
+class FormatFetcher(QThread):
+    result = pyqtSignal(dict)
+    error = pyqtSignal(str)
+    def __init__(self, url):
+        super().__init__()
+        self.url = url
+    def run(self):
+        try:
+            resp = requests.get(f"http://127.0.0.1:5678/formats?url={self.url}", timeout=8)
+            self.result.emit(resp.json())
+        except Exception as e:
+            self.error.emit(str(e))
 
 class DownloadThread(QThread):
     progress = pyqtSignal(str, str, float, str, str, str, str)
     finished = pyqtSignal(str)
-
-    def __init__(self, url):
+    def __init__(self, url, filename, format_id=None, is_audio=False, audio_ext=None, bitrate="192"):
         super().__init__()
-        self.url = urllib.parse.unquote(url)
-        self._is_paused = False
-        self._is_stopped = False
-        self._current_file = None
-
-    def pause(self):
-        self._is_paused = True
-
-    def resume(self):
-        self._is_paused = False
+        self.url = url
+        self.filename = filename  # chỉ là %(title)s (không có đuôi)
+        self.format_id = format_id
+        self.is_audio = is_audio
+        self.audio_ext = audio_ext
+        self.bitrate = bitrate
 
     def run(self):
-        if is_youtube_or_social(self.url):
-            category_folder = os.path.join(DOWNLOAD_ROOT, CATEGORY_LABELS['Video'])
-            os.makedirs(category_folder, exist_ok=True)
+        try:
+            # Bước 1: tải file gốc về thư mục Video
+            video_outtmpl = get_save_path(f"{self.filename}.%(ext)s", category="Video")
             ydl_opts = {
-                'outtmpl': os.path.join(category_folder, '%(title)s.%(ext)s'),
+                'outtmpl': video_outtmpl,
                 'progress_hooks': [self.ytdlp_hook],
                 'noplaylist': True,
                 'concurrent_fragment_downloads': 16,
                 'retries': 5,
                 'force_overwrite': True,
                 'continuedl': True,
-                'cookiefile': r'D:\NhuanTinIDM\cookies.txt',
+                'cookiefile': COOKIES_FILE,
+                'quiet': True,
+                'noprogress': False,
+                'merge_output_format': 'mp4',
             }
-            try:
-                with YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([self.url])
-            except Exception as e:
-                self.progress.emit("ERROR", "-", 0, f"Lỗi: {e}", "-", "-", "-")
-                self.finished.emit("ERROR")
-            return
-        try:
-            filename = os.path.basename(urllib.parse.urlparse(self.url).path) or "unknown_file"
-            save_path = get_save_path(filename)
-            self._current_file = save_path
-            if os.path.exists(save_path):
-                os.remove(save_path)
-            fast_download(self.url, save_path)
-            status = "Completed"
-            size_str = "-"
-            cat = get_category(filename)
-            cat_label = CATEGORY_LABELS[cat] if cat else ""
-            self.progress.emit(filename, size_str, 100, status, "-", "-", cat_label)
-            self.finished.emit(filename)
+            if self.format_id:
+                ydl_opts['format'] = self.format_id
+            if self.is_audio and self.audio_ext:
+                ydl_opts["postprocessors"] = [{
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": self.audio_ext,
+                    "preferredquality": self.bitrate,
+                }]
+            with YoutubeDL(ydl_opts) as ydl:
+                ydl.download([self.url])
+
+            # Bước 2: Move file mp3 (sau khi convert) sang thư mục Music
+            video_folder = CATEGORY_FOLDERS['Video']
+            music_folder = CATEGORY_FOLDERS['Music']
+            # Tìm file mp3 mới nhất trong Video (cùng tên với title)
+            mp3_file = None
+            for f in os.listdir(video_folder):
+                if f.endswith('.mp3'):
+                    mp3_file = f
+                    break
+            if mp3_file:
+                src = os.path.join(video_folder, mp3_file)
+                dst = os.path.join(music_folder, mp3_file)
+                if not os.path.exists(music_folder):
+                    os.makedirs(music_folder, exist_ok=True)
+                shutil.move(src, dst)
+                self.finished.emit(dst)
+            else:
+                self.finished.emit("")
+
         except Exception as e:
-            self.progress.emit("ERROR", "-", 0, f"Lỗi: {e}", "-", "-", "")
+            self.progress.emit("ERROR", "-", 0, f"Lỗi: {e}", "-", "-", "-")
             self.finished.emit("ERROR")
 
-    if len(sys.argv) > 1:
-        url = sys.argv[1]
-        if url.startswith("idmapp://download?url="):
-            link = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)['url'][0]
-            print("Nhận link:", link)
-    
     def ytdlp_hook(self, d):
         if d['status'] == 'downloading':
             info = d.get('info_dict') or {}
@@ -261,18 +355,21 @@ class DownloadThread(QThread):
                 filename_show = os.path.basename(filename)
             else:
                 filename_show = "downloading"
+            if filename_show.endswith('.mp3'):
+                filename_show = filename_show[:-4]
             total = d.get('total_bytes', 0) or d.get('total_bytes_estimate', 0)
             downloaded = d.get('downloaded_bytes', 0)
             percent = (downloaded/total*100) if total else 0
             speed = d.get('speed', 0)
             eta = d.get('eta', 0)
             size_str = f"{round(total/1024/1024,2)} MB" if total else "-"
-            speed_str = f"{round(speed/1024,2)} KB/sec" if speed else "-"
+            speed_str = f"{round(speed/1024,2)} KB/s" if speed else "-"
             time_left = format_seconds(eta) if eta else "-"
             cat = get_category(filename_show)
-            cat_label = CATEGORY_LABELS[cat] if cat else ""
+            cat_label = CATEGORY_LABELS[cat][CURRENT_LANG] if cat in CATEGORY_LABELS else ""
+            status_str = f"{percent:.0f}%"
             self.progress.emit(
-                filename_show, size_str, percent, "Downloading", time_left, speed_str, cat_label
+                filename_show, size_str, percent, status_str, time_left, speed_str, cat_label
             )
         elif d['status'] == 'finished':
             info = d.get('info_dict') or {}
@@ -285,133 +382,256 @@ class DownloadThread(QThread):
                 filename_show = os.path.basename(filename)
             else:
                 filename_show = "finished"
+            if filename_show.endswith('.mp3.mp3'):
+                filename_show = filename_show[:-4]
             size_str = "-"
             cat = get_category(filename_show)
-            cat_label = CATEGORY_LABELS[cat] if cat else ""
+            cat_label = CATEGORY_LABELS[cat][CURRENT_LANG] if cat in CATEGORY_LABELS else ""
             self.progress.emit(
-                filename_show, size_str, 100, "Completed", "-", "-", cat_label
+                filename_show, size_str, 100, "Hoàn thành", "-", "-", cat_label
             )
             self.finished.emit(filename_show)
 
-    def stop(self):
-        self._is_stopped = True
-
 class DownloadManager(QMainWindow):
-    add_link_signal = pyqtSignal(str)
     def __init__(self):
         super().__init__()
         self.setWindowTitle("IDM Pikachu")
-        try:
-            self.setWindowIcon(QIcon("app.png"))
-        except:
-            pass
-        self.resize(950, 500)
-
-        # --- Đặt toàn bộ phần dựng giao diện ở đây ---
+        try: self.setWindowIcon(QIcon("app.png"))
+        except: pass
+        self.resize(1200, 600)
+        # Tree category Việt hóa & đa ngôn ngữ
         self.category_tree = QTreeWidget()
-        self.category_tree.setHeaderLabels([L['category']])
-        all_item = QTreeWidgetItem([L['all_downloads']])
-        self.category_items = {"All Downloads": all_item}
-        for cat in CATEGORIES:
-            item = QTreeWidgetItem([CATEGORY_LABELS[cat]])
+        self.category_tree.setHeaderLabels([CATEGORY_LABELS["All"][CURRENT_LANG]])
+        all_item = QTreeWidgetItem([CATEGORY_LABELS["All"][CURRENT_LANG]])
+        icon_path = ICON_PATHS.get("folder")
+        if icon_path and os.path.exists(icon_path):
+            all_item.setIcon(0, QIcon(icon_path))
+        self.category_items = {"All": all_item}
+        for cat in ["Compressed", "Documents", "Music", "Programs", "Video"]:
+            item = QTreeWidgetItem([CATEGORY_LABELS[cat][CURRENT_LANG]])
+            icon_key = {
+                "Compressed": "archive",
+                "Documents": "document",
+                "Music": "music",
+                "Programs": "program",
+                "Video": "video"
+            }.get(cat, "folder")
+            icon_path = ICON_PATHS.get(icon_key)
+            if icon_path and os.path.exists(icon_path):
+                item.setIcon(0, QIcon(icon_path))
             all_item.addChild(item)
             self.category_items[cat] = item
         self.category_tree.addTopLevelItem(all_item)
         all_item.setExpanded(True)
-        self.category_tree.clicked.connect(self.filter_by_category)
+        self.category_tree.itemClicked.connect(self.on_category_selected)
 
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels([
-            L['filename'], L['size'], L['status'], L['time_left'], L['transfer_rate'], L['category']
+            "Tên tệp", "Kích thước", "Trạng thái", "Thời gian còn lại", "Tốc độ", "Phân loại"
         ])
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
-
-        self.link_label = QLabel(L['download_link'])
+        self.link_label = QLabel("Liên kết tải:")
         self.link_input = QLineEdit()
-        self.add_btn = QPushButton(L['add_url'])
+        self.add_btn = QPushButton("Thêm liên kết")
         self.add_btn.clicked.connect(self.handle_add_link)
-        self.pause_btn = QPushButton(L['pause'])
+        self.pause_btn = QPushButton("Tạm dừng")
         self.pause_btn.clicked.connect(self.handle_pause)
-        self.resume_btn = QPushButton(L['resume'])
+        self.resume_btn = QPushButton("Tiếp tục")
         self.resume_btn.clicked.connect(self.handle_resume)
-        self.clear_btn = QPushButton(L['delete'])
+        self.clear_btn = QPushButton("Xóa")
         self.clear_btn.clicked.connect(self.clear_selected)
+        self.clear_all_btn = QPushButton("Xóa tất cả")
+        self.clear_all_btn.clicked.connect(self.clear_all)
+        self.option_video_btn = QPushButton("Tùy chọn Video")
+        self.option_video_btn.clicked.connect(self.optimized_show_video_options)
+        self.option_audio_btn = QPushButton("Tùy chọn Audio")
+        self.option_audio_btn.clicked.connect(self.optimized_show_audio_options)
         btn_row = QHBoxLayout()
         btn_row.addWidget(self.add_btn)
         btn_row.addWidget(self.pause_btn)
         btn_row.addWidget(self.resume_btn)
         btn_row.addWidget(self.clear_btn)
-
+        btn_row.addWidget(self.clear_all_btn)
         input_row = QHBoxLayout()
         input_row.addWidget(self.link_label)
         input_row.addWidget(self.link_input)
-
+        input_row.addWidget(self.option_video_btn)
+        input_row.addWidget(self.option_audio_btn)
         right_layout = QVBoxLayout()
         right_layout.addLayout(input_row)
         right_layout.addLayout(btn_row)
         right_layout.addWidget(self.table)
-
-        splitter = QSplitter()
         left_widget = QWidget()
         left_vbox = QVBoxLayout()
+        left_vbox.setContentsMargins(0,0,0,0)
+        left_vbox.setSpacing(0)
         left_vbox.addWidget(self.category_tree)
         left_widget.setLayout(left_vbox)
-        splitter.addWidget(left_widget)
+    
         right_widget = QWidget()
         right_widget.setLayout(right_layout)
+
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(left_widget)
         splitter.addWidget(right_widget)
-        splitter.setSizes([180, 700])
+        splitter.setSizes([140, 400])
+        splitter.setHandleWidth(1)
+        splitter.setStyleSheet("QSplitter::handle { background: transparent; }")
 
         container = QWidget()
         c_layout = QHBoxLayout()
+        c_layout.setContentsMargins(0,0,0,0)
+        c_layout.setSpacing(0)
         c_layout.addWidget(splitter)
         container.setLayout(c_layout)
         self.setCentralWidget(container)
+        self.selected_video_format = None
+        self.selected_audio_format = None
+        self.selected_bitrate = "192"
+        self.downloads = []
 
-        self.downloads = []  # [(thread, row)]
-        self.active_rows = {}  # filename -> row
-        self.row_category = {}  # row -> category
+    def on_category_selected(self, item, col):
+        # Xác định cat_key (Compressed, Documents, ...)
+        cat_key = None
+        for key, label_map in CATEGORY_LABELS.items():
+            if label_map[CURRENT_LANG] == item.text(0):
+                cat_key = key
+                break
+        files = []
+        if cat_key is None or cat_key == "All":
+            for cat, folder in CATEGORY_FOLDERS.items():
+                files += self._get_files_for_category(cat)
+        else:
+            files = self._get_files_for_category(cat_key)
+        self._update_table(files)
 
-        # Connect signal
-        self.add_link_signal.connect(self._handle_add_link_slot)
+    def _get_files_for_category(self, cat_key):
+        folder = CATEGORY_FOLDERS.get(cat_key)
+        if not folder or not os.path.exists(folder):
+            return []
+        filters = CATEGORIES.get(cat_key, [])
+        file_list = []
+        for name in os.listdir(folder):
+            ext = os.path.splitext(name)[1].lower()
+            if ext in filters:
+                file_list.append(os.path.join(folder, name))
+        return file_list
 
-    def _handle_add_link_slot(self, link):
-        print(f"Slot nhận link: {link}")
-        self.link_input.setText(link)
-        self.handle_add_link()
+    def _update_table(self, files):
+        self.table.setRowCount(0)
+        for f in files:
+            row = self.table.rowCount()
+            self.table.insertRow(row)
+            self.table.setItem(row, 0, QTableWidgetItem(os.path.basename(f)))
+            self.table.setItem(row, 1, QTableWidgetItem(f"{os.path.getsize(f)//1024} KB"))
+            self.table.setItem(row, 2, QTableWidgetItem(""))
+            self.table.setItem(row, 3, QTableWidgetItem(""))
+            self.table.setItem(row, 4, QTableWidgetItem(""))
+            cat = get_category(f)
+            cat_label = CATEGORY_LABELS[cat][CURRENT_LANG] if cat in CATEGORY_LABELS else ""
+            self.table.setItem(row, 5, QTableWidgetItem(cat_label))
+
+    def optimized_show_audio_options(self):
+        url = self.link_input.text().strip()
+        if not url:
+            QMessageBox.warning(self, "Cảnh báo", "Vui lòng nhập liên kết trước!")
+            return
+        self.audio_fetcher = FormatFetcher(url)
+        self.audio_fetcher.result.connect(self._show_audio_options_dialog)
+        self.audio_fetcher.error.connect(lambda msg: QMessageBox.critical(self, "Lỗi", msg))
+        self.audio_fetcher.start()
+
+    def _show_audio_options_dialog(self, data):
+        dialog = AudioOptionDialog(self)
+        if dialog.exec_():
+            bitrate, target_ext = dialog.get_selection()
+            audio_list = data.get("audio", [])
+            audio_item = None
+            bitrate_int = int(bitrate)
+            min_diff = float('inf')
+            for item in audio_list:
+                try:
+                    item_abr = int(item.get('label', '').split('kbps')[0].strip())
+                    diff = abs(item_abr - bitrate_int)
+                    if diff < min_diff:
+                        min_diff = diff
+                        audio_item = item
+                except:
+                    continue
+            if audio_item:
+                self.selected_audio_format = (audio_item, target_ext, bitrate)
+                self.selected_video_format = None
+                self.handle_add_link()
+            else:
+                QMessageBox.warning(self, "Không tìm thấy", "Không tìm được bitrate gần nhất!")
+
+    def optimized_show_video_options(self):
+        url = self.link_input.text().strip()
+        if not url:
+            QMessageBox.warning(self, "Cảnh báo", "Vui lòng nhập liên kết trước!")
+            return
+        self.video_fetcher = FormatFetcher(url)
+        self.video_fetcher.result.connect(self._show_video_options_dialog)
+        self.video_fetcher.error.connect(lambda msg: QMessageBox.critical(self, "Lỗi", msg))
+        self.video_fetcher.start()
+
+    def _show_video_options_dialog(self, data):
+        dialog = VideoOptionDialog(data.get("video", []), data.get("video_only", []), self)
+        if dialog.exec_():
+            item = dialog.get_selection()
+            if item:
+                self.selected_video_format = item
+                self.selected_audio_format = None
+                self.handle_add_link()
 
     def handle_add_link(self):
         url = self.link_input.text().strip()
         if not url:
             QMessageBox.warning(self, "Lỗi", "Bạn chưa nhập liên kết!")
             return
-        try:
-            thread = DownloadThread(url)
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-            filename = url if is_youtube_or_social(url) else os.path.basename(urllib.parse.urlparse(url).path) or "unknown_file"
-            cat = get_category(filename)
-            cat_label = CATEGORY_LABELS[cat] if cat else ""
-            self.table.setItem(row, 0, QTableWidgetItem(filename))
-            self.table.setItem(row, 1, QTableWidgetItem("-"))
-            self.table.setItem(row, 2, QTableWidgetItem("0%"))
-            self.table.setItem(row, 3, QTableWidgetItem("-"))
-            self.table.setItem(row, 4, QTableWidgetItem("-"))
-            self.table.setItem(row, 5, QTableWidgetItem(cat_label))
-            self.downloads.append((thread, row))
-            thread.progress.connect(lambda *info, row=row: self.update_row(row, *info))
-            thread.finished.connect(lambda fname: self.finish_row(fname))
-            thread.start()
-            self.link_input.clear()
-        except Exception as ex:
-            QMessageBox.critical(self, "Lỗi", f"Lỗi khi thêm liên kết:\n{ex}")
+
+        filename = "%(title)s"
+        format_id = None
+        is_audio = False
+        audio_ext = None
+        bitrate = "192"
+
+        if self.selected_audio_format:
+            item, target_ext, bitrate = self.selected_audio_format
+            format_id = item["format_id"]
+            is_audio = True
+            audio_ext = target_ext
+        elif self.selected_video_format:
+            item = self.selected_video_format
+            format_id = item["format_id"]
+
+        thread = DownloadThread(
+            url,
+            filename,
+            format_id,
+            is_audio,
+            audio_ext,
+            bitrate
+        )
+        row = self.table.rowCount()
+        self.table.insertRow(row)
+        cat_label = CATEGORY_LABELS["Music"][CURRENT_LANG] if is_audio else CATEGORY_LABELS["Video"][CURRENT_LANG]
+        self.table.setItem(row, 0, QTableWidgetItem(filename))
+        self.table.setItem(row, 1, QTableWidgetItem("-"))
+        self.table.setItem(row, 2, QTableWidgetItem("0%"))
+        self.table.setItem(row, 3, QTableWidgetItem("-"))
+        self.table.setItem(row, 4, QTableWidgetItem("-"))
+        self.table.setItem(row, 5, QTableWidgetItem(cat_label))
+        self.downloads.append((thread, row))
+        thread.progress.connect(lambda *info, row=row: self.update_row(row, *info))
+        thread.finished.connect(lambda fname: self.finish_row(fname))
+        thread.start()
+        self.link_input.clear()
 
     def update_row(self, row, filename, size, percent, status, time_left, speed, cat_label):
-        if status == 'Downloading':
-            status_text = f"{percent:.2f}% ({L['downloading']})"
-        elif status == 'Completed':
-            status_text = L['completed']
+        if status == 'Hoàn thành':
+            status_text = "Hoàn thành"
         else:
             status_text = status
         self.table.setItem(row, 0, QTableWidgetItem(filename))
@@ -429,67 +649,31 @@ class DownloadManager(QMainWindow):
             row = idx.row()
             for t, r in self.downloads:
                 if r == row:
-                    t.stop()
-                    if is_youtube_or_social(t.url):
-                        t.terminate()  # Force kill yt-dlp thread
-
+                    t.terminate()
     def handle_resume(self):
         for idx in self.table.selectionModel().selectedRows():
             row = idx.row()
             for t, r in self.downloads:
-                if r == row:
-                    if is_youtube_or_social(t.url):
-                        if t.isRunning():
-                            QMessageBox.information(self, "Đang tải", "Video đang tải, không cần tiếp tục.")
-                        else:
-                            # Tạo thread mới cho yt-dlp, yt-dlp sẽ tự resume nếu file tạm còn
-                            new_thread = DownloadThread(t.url)
-                            self.downloads.append((new_thread, row))
-                            new_thread.progress.connect(lambda *info, row=row: self.update_row(row, *info))
-                            new_thread.finished.connect(lambda fname: self.finish_row(fname))
-                            new_thread.start()
-                    else:
-                        t.resume()
-
+                if r == row and not t.isRunning():
+                    thread = DownloadThread(t.url, t.save_path, t.format_id, t.is_audio, t.audio_ext, t.bitrate)
+                    self.downloads.append((thread, row))
+                    thread.progress.connect(lambda *info, row=row: self.update_row(row, *info))
+                    thread.finished.connect(lambda fname: self.finish_row(fname))
+                    thread.start()
     def clear_selected(self):
         selected = sorted([idx.row() for idx in self.table.selectionModel().selectedRows()], reverse=True)
         for row in selected:
             for t, r in self.downloads:
                 if r == row:
-                    t.stop()
-                    if is_youtube_or_social(t.url):
-                        t.terminate()
+                    t.terminate()
             self.table.removeRow(row)
-
-    def filter_by_category(self):
-        item = self.category_tree.currentItem()
-        if not item: return
-        cat_label = item.text(0)
-        if cat_label == "All Downloads":
-            for row in range(self.table.rowCount()):
-                self.table.setRowHidden(row, False)
-        else:
-            for row in range(self.table.rowCount()):
-                self.table.setRowHidden(row, self.row_category.get(row, "") != cat_label)
-
-    def closeEvent(self, event):
-        for t, _ in self.downloads:
-            t.stop()
-            t.quit()
-            t.wait()
-        event.accept()
+    def clear_all(self):
+        for t, r in self.downloads:
+            t.terminate()
+        self.table.setRowCount(0)
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        url = sys.argv[1]
-        if send_to_running_app(url):
-            sys.exit(0)
-
-    threading.Thread(target=server, daemon=True).start()
     app = QApplication(sys.argv)
     win = DownloadManager()
-    main_window = win
     win.show()
-    if len(sys.argv) > 1:
-        process_link(sys.argv[1])
     sys.exit(app.exec_())
