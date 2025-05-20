@@ -1,60 +1,70 @@
 body {
-    font-family: Arial, sans-serif;
-    background: #fff;
-    margin: 0; padding: 0;
+  width: 320px;
+  margin: 0;
+  font-family: Arial;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.2);
 }
-#pikachu-box {
-    width: 340px;
-    border-radius: 12px;
-    box-shadow: 0 4px 32px #0003;
-    background: #fff;
-    margin: 10px;
-    padding: 0 0 12px 0;
+.pikachu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px 8px 12px;
+  border-bottom: 1px solid #eee;
 }
-#pikachu-title {
-    font-size: 17px;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: #fffbe9;
-    padding: 8px 16px 8px 8px;
-    border-radius: 12px 12px 0 0;
-    border-bottom: 1px solid #eee;
+.pikachu-icon {
+  width: 28px;
+  height: 28px;
+  margin-right: 8px;
 }
-#close-btn {
-    background: none;
-    border: none;
-    font-size: 18px;
-    cursor: pointer;
+.pikachu-title {
+  font-weight: bold;
+  flex: 1;
+  font-size: 1.1em;
 }
-.section {
-    font-size: 13px;
-    margin: 16px 0 4px 0;
-    color: #888;
-    font-weight: bold;
-    padding-left: 14px;
-    display: flex;
-    align-items: center;
-    gap: 7px;
+.pikachu-close {
+  font-size: 1.3em;
+  cursor: pointer;
 }
-.section-title { text-transform: uppercase; }
-.option {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #f7f7ff;
-    margin: 2px 8px;
-    padding: 7px 15px 7px 14px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 15px;
-    border: 1px solid #eee;
-    transition: background 0.2s, border 0.2s;
+.section-title {
+  margin: 14px 0 6px 12px;
+  font-size: 1em;
+  color: #888;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
 }
-.option:hover {
-    background: #ffe7b5;
-    border: 1px solid #ffc107;
+.section-title i {
+  margin-right: 7px;
 }
-.option-label { font-weight: 500; }
-.option-ext { color: #888; font-size: 13px; }
+.option-list {
+  margin: 0;
+  padding: 0 10px;
+  list-style: none;
+}
+.option-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 7px 10px;
+  margin-bottom: 2px;
+  transition: background 0.18s;
+}
+.option-item:hover {
+  background: #f3f3f3;
+}
+.option-label {
+  font-size: 1em;
+}
+.option-info {
+  color: #888;
+  font-size: 0.93em;
+}
+hr {
+  border: none;
+  border-top: 1px solid #eee;
+  margin: 12px 0;
+}
