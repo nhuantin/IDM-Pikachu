@@ -1,54 +1,77 @@
-document.addEventListener('DOMContentLoaded', async () => {
-    const optionsList = document.getElementById('options-list');
-    const closeBtn = document.getElementById('close-btn');
-    closeBtn.onclick = () => window.close();
+// Đóng popup khi bấm nút X
+document.getElementById('close-btn').onclick = () => window.close();
 
-    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-        let url = tabs[0].url;
-        fetch("http://127.0.0.1:5678/formats?url=" + encodeURIComponent(url))
-            .then(res => res.json())
-            .then(data => {
-                optionsList.innerHTML = "";
+// Hàm tạo section tiêu đề
+function createSection(title, icon) {
+  return `<div class="section-title"><i>${icon}</i>${title}</div>`;
+}
 
-                // VIDEO
-                if (data.video && data.video.length) {
-                    optionsList.innerHTML += `<div class="section"><span class="icon">📺</span> <span class="section-title">VIDEO</span></div>`;
-                    data.video.forEach(f => {
-                        optionsList.innerHTML += `<div class="option" data-type="video" data-id="${f.format_id}"><span class="option-label">${f.label}</span><span class="option-ext">${f.ext || ".mp4"}</span></div>`;
-                    });
-                }
-                // AUDIO
-                if (data.audio && data.audio.length) {
-                    optionsList.innerHTML += `<div class="section"><span class="icon">🎵</span> <span class="section-title">AUDIO</span></div>`;
-                    data.audio.forEach(f => {
-                        optionsList.innerHTML += `<div class="option" data-type="audio" data-id="${f.format_id}"><span class="option-label">${f.label}</span><span class="option-ext">${f.ext || ".mp3"}</span></div>`;
-                    });
-                }
-                // SUBTITLES
-                if (data.subtitles && data.subtitles.length) {
-                    optionsList.innerHTML += `<div class="section"><span class="icon">📝</span> <span class="section-title">PHỤ ĐỀ</span></div>`;
-                    data.subtitles.forEach(s => {
-                        optionsList.innerHTML += `<div class="option" data-type="subtitle" data-lang="${s.lang}"><span class="option-label">${s.label}</span><span class="option-ext">.srt</span></div>`;
-                    });
-                }
+// Hàm tạo option, truyền đủ thông tin cần thiết
+function createOption(option, type) {
+  // option: {label, info, url, format_id, ext, bitrate, lang}
+  let attrs = [
+    `data-url="${encodeURIComponent(option.url)}"`,
+    `data-type="${type}"`
+  ];
+  if (option.format_id) attrs.push(`data-format_id="${option.format_id}"`);
+  if (option.ext) attrs.push(`data-target_ext="${option.ext}"`);
+  if (option.bitrate) attrs.push(`data-bitrate="${option.bitrate}"`);
+  if (option.lang) attrs.push(`data-lang="${option.lang}"`);
+  return `<div class="option-item" ${attrs.join(' ')}>
+    <span class="option-label">${option.label}</span>
+    <span class="option-info">${option.info || ""}</span>
+  </div>`;
+}
 
-                // Bắt sự kiện click
-                document.querySelectorAll('.option').forEach(opt => {
-                    opt.onclick = () => {
-                        const type = opt.dataset.type;
-                        let body = {url, type};
-                        if (type === "video" || type === "audio") body.format_id = opt.dataset.id;
-                        if (type === "subtitle") body.lang = opt.dataset.lang;
-                        fetch("http://127.0.0.1:5678/download", {
-                            method: "POST",
-                            headers: {"Content-Type": "application/json"},
-                            body: JSON.stringify(body)
-                        });
-                        opt.innerText = "✅ Đã gửi tải!";
-                        setTimeout(() => window.close(), 1200);
-                    }
-                });
-            })
-            .catch(() => optionsList.innerHTML = "Không lấy được thông tin định dạng!");
+// Nhận dữ liệu từ background
+chrome.runtime.sendMessage({action: 'getDownloadOptions'}, function(response) {
+  let html = '';
+  if (response.video && response.video.length) {
+    html += createSection('VIDEO', '📺');
+    html += '<div class="option-list">';
+    response.video.forEach(opt => {
+      html += createOption(opt, 'video');
     });
+    html += '</div>';
+  }
+  if (response.audio && response.audio.length) {
+    html += createSection('AUDIO', '🎵');
+    html += '<div class="option-list">';
+    response.audio.forEach(opt => {
+      html += createOption(opt, 'audio');
+    });
+    html += '</div>';
+  }
+  if (response.subtitle && response.subtitle.length) {
+    html += createSection('PHỤ ĐỀ', '≡');
+    html += '<div class="option-list">';
+    response.subtitle.forEach(opt => {
+      html += createOption(opt, 'subtitle');
+    });
+    html += '</div>';
+  }
+  document.getElementById('file-list').innerHTML = html;
+
+  // Gửi về app desktop khi chọn
+  document.querySelectorAll('.option-item').forEach(el => {
+    el.onclick = function() {
+      const url = decodeURIComponent(this.getAttribute('data-url'));
+      const type = this.getAttribute('data-type');
+      const format_id = this.getAttribute('data-format_id');
+      const target_ext = this.getAttribute('data-target_ext');
+      const bitrate = this.getAttribute('data-bitrate');
+      const lang = this.getAttribute('data-lang');
+      // Gửi đủ thông tin về app (qua background)
+      chrome.runtime.sendMessage({
+        action: 'downloadWithApp',
+        url,
+        type,
+        format_id,
+        target_ext,
+        bitrate,
+        lang
+      });
+      window.close();
+    }
+  });
 });
