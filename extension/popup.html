@@ -1,18 +1,17 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Chọn tệp để tải</title>
-  <link rel="stylesheet" href="popup.css" />
+  <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div id="pikachu-box">
-      <div id="pikachu-title">
-          ⚡ Chọn tệp để tải
-          <button id="close-btn">✖</button>
-      </div>
-      <div id="options-list">Đang lấy định dạng...</div>
+  <div class="pikachu-header">
+    <img src="pikachu.png" class="pikachu-icon" />
+    <span class="pikachu-title">Tải bằng IDM Pikachu</span>
+    <span class="pikachu-close" id="close-btn">&times;</span>
   </div>
+  <div id="file-list"></div>
   <script src="popup.js"></script>
 </body>
 </html>
